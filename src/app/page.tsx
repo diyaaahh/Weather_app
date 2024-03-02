@@ -8,6 +8,12 @@ import {parseISO} from "date-fns"
 import Container from "./components/Container";
 import KelvinToCelsius from './utils/KelvinToCelsius'
 import WeatherIcon from "./components/WeatherIcon";
+import { convertWindSpeed } from "./utils/convertWindSpeed";
+import { metersToKilometers } from "./utils/metersToKilometers";
+import WeatherDetails from "./components/WeatherDetails";
+import { useAtom } from "jotai";
+import { loadingCityAtom, placeAtom } from "./atom";
+import { useEffect } from "react";
 interface WeatherDetail {
   dt: number;
   main: {
@@ -63,19 +69,28 @@ interface WeatherData {
   };
 }
 export default function Home() {
-  const { isLoading, error, data } = useQuery<WeatherData>('repoData',async() =>{
-    const {data}= await axios.get('https://api.openweathermap.org/data/2.5/forecast?q=Kathmandu&appid=6e6a1e6c86d62e3e8adb6c46cfa5eac5&cnt=56')
+  const[place, setPlace] = useAtom(placeAtom)
+  const[loadingCity, setLoadingCity]=useAtom(loadingCityAtom)
+
+  const { isLoading, error, data, refetch } = useQuery<WeatherData>
+  ('repoData',async() =>{
+    const {data}= await axios.get(`https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=6e6a1e6c86d62e3e8adb6c46cfa5eac5&cnt=56`)
     return data ;
   }
   )
+  useEffect(()=>{
+    refetch()
+  },[place, refetch])
+
   const firstData = data?.list[0];
   console.log(data)
 
   if (isLoading) return 'Loading...'
   return (
     <div className="flex flex-col gap-4 bg-gray-100 min-h-screen">
-     <Navbar/>
+     <Navbar location={data?.city.name}/>
      <main className="px-3 max-w-7xl mx-auto flex flex-col gap-9 w-full pb-10 pt-4">
+      <> {loadingCity? <WeatherSkeleton/> :
       <section className="space-y-4">
         <div className="space-y-2"> 
           
@@ -124,8 +139,60 @@ export default function Home() {
               </div>
             </Container>
         </div>
-      </section>
+        <div className=" flex gap-4">
+                {/* left  */}
+                <Container className="w-fit  justify-center flex-col px-4 items-center ">
+                  <p className=" capitalize text-center">
+                    {firstData?.weather[0].description}{" "}
+                  </p>
+                  <WeatherIcon
+                    iconName={
+                      firstData?.weather[0].icon ?? ""
+                    }
+                  />
+                </Container>
+                <Container className="bg-purple-300/80  px-6 gap-4 justify-between overflow-x-auto">
+                  <WeatherDetails
+                    visability={metersToKilometers(
+                      firstData?.visibility ?? 10000
+                    )}
+                    airPressure={`${firstData?.main.pressure} hPa`}
+                    humidity={`${firstData?.main.humidity}%`}
+                    sunrise={format(data?.city.sunrise ?? 1702949452, "H:mm")}
+                    // sunrise={}
+                    sunset={format(data?.city.sunset ?? 1702517657, "H:mm")}
+                    windSpeed={convertWindSpeed(firstData?.wind.speed ?? 1.64)}
+                  />
+                </Container>
+                </div>
+      </section>}
+      </>
        </main>
     </div>
   );
 }
+
+
+function WeatherSkeleton() {
+  return (
+    <section className="space-y-8 ">
+      {/* Today's data skeleton */}
+      <div className="space-y-2 animate-pulse">
+        {/* Date skeleton */}
+        <div className="flex gap-1 text-2xl items-end ">
+          <div className="h-6 w-24 bg-gray-300 rounded"></div>
+          <div className="h-6 w-24 bg-gray-300 rounded"></div>
+        </div>
+
+        {/* Time wise temperature skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((index) => (
+            <div key={index} className="flex flex-col items-center space-y-2">
+              <div className="h-6 w-16 bg-gray-300 rounded"></div>
+              <div className="h-6 w-6 bg-gray-300 rounded-full"></div>
+              <div className="h-6 w-16 bg-gray-300 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      </section>)}
